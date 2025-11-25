@@ -9,7 +9,7 @@ from frappe.utils.safe_exec import get_safe_globals, safe_exec
 from frappe.integrations.utils import make_post_request
 from frappe.desk.form.utils import get_pdf_link
 from frappe.utils import add_to_date, nowdate, datetime
-
+from urllib.parse import quote
 
 class WhatsAppNotification(Document):
     """Notification."""
@@ -180,7 +180,7 @@ class WhatsAppNotification(Document):
                     if not file_url.startswith("http"):
                         # get share key so that private files can be sent
                         key = doc.get_document_share_key()
-                        file_url = f'{frappe.utils.get_url()}{file_url}&key={key}'
+                        file_url = f'{frappe.utils.get_url()}{quote(file_url)}&key={key}'
                 else:
                     file_url = self.attach
 

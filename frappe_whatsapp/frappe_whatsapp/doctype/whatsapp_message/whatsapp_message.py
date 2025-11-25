@@ -4,7 +4,7 @@ import json
 import frappe
 from frappe.model.document import Document
 from frappe.integrations.utils import make_post_request
-
+from urllib.parse import quote
 
 class WhatsAppMessage(Document):
     """Send whats app messages."""
@@ -13,7 +13,7 @@ class WhatsAppMessage(Document):
         """Send message."""
         if self.type == "Outgoing" and self.message_type != "Template":
             if self.attach and not self.attach.startswith("http"):
-                link = frappe.utils.get_url() + "/" + self.attach
+                link = frappe.utils.get_url() + "/" + quote(self.attach)
             else:
                 link = self.attach
 

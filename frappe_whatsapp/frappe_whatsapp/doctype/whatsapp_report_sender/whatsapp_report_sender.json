@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-25 11:51:53.272027",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "whatsapp_number",
+  "user",
+  "format_type",
+  "file_type",
+  "document_doctype",
+  "doc_name",
+  "column_break_p7qo",
+  "template",
+  "content_type",
+  "report",
+  "print_format",
+  "generated_file",
+  "status",
+  "section_break_zajx",
+  "filters"
+ ],
+ "fields": [
+  {
+   "default": "Document",
+   "fieldname": "content_type",
+   "fieldtype": "Select",
+   "label": "Content Type",
+   "options": "Document"
+  },
+  {
+   "depends_on": "eval:doc.format_type=='Report'",
+   "fieldname": "report",
+   "fieldtype": "Link",
+   "label": "Report",
+   "options": "Report"
+  },
+  {
+   "depends_on": "eval:doc.format_type=='Print Format'",
+   "fieldname": "print_format",
+   "fieldtype": "Link",
+   "label": "Print Format",
+   "options": "Print Format"
+  },
+  {
+   "default": "PDF",
+   "fieldname": "file_type",
+   "fieldtype": "Select",
+   "label": "File Type",
+   "options": "PDF"
+  },
+  {
+   "fieldname": "generated_file",
+   "fieldtype": "Attach",
+   "label": "Generated File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Success\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "whatsapp_number",
+   "fieldtype": "Data",
+   "label": "WhatsApp number"
+  },
+  {
+   "fieldname": "format_type",
+   "fieldtype": "Select",
+   "label": "Format Type",
+   "options": "Print Format\nReport"
+  },
+  {
+   "fieldname": "column_break_p7qo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.format_type=='Print Format'",
+   "fieldname": "document_doctype",
+   "fieldtype": "Link",
+   "label": "Document Doctype",
+   "options": "DocType"
+  },
+  {
+   "depends_on": "eval:doc.format_type=='Print Format'",
+   "fieldname": "doc_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Doc Name",
+   "options": "document_doctype"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "WhatsApp Templates"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Data",
+   "label": "User"
+  },
+  {
+   "fieldname": "section_break_zajx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "Sample:\n{\"customer_name\": \"MTN\"}",
+   "fieldname": "filters",
+   "fieldtype": "JSON",
+   "label": "Filters"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-25 14:38:37.770828",
+ "modified_by": "Administrator",
+ "module": "Frappe Whatsapp",
+ "name": "WhatsApp Report Sender",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
