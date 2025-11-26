@@ -48,6 +48,7 @@ def generate_pdf_for_print_format(self):
 
 		return filedoc.file_url
 	except Exception as err:
+		frappe.log_error("WhatsApp Print Format Sender", frappe.get_traceback())
 		return False
 
 
@@ -76,10 +77,15 @@ def generate_report_pdf(self):
 
 		for row in data:
 			html += "<tr>"
-			for col in columns:
-				field = col.get("fieldname")
-				value = row.get(field, "")
-				html += f"<td>{value}</td>"
+			if isinstance(row, dict):
+
+				for col in columns:
+					field = col.get("fieldname")
+					value = row.get(field, "")
+					html += f"<td>{value}</td>"
+			else:
+				for value in row:
+					html += f"<td>{value}</td>"
 			html += "</tr>"
 
 		html += "</tbody></table>"
@@ -106,4 +112,5 @@ def generate_report_pdf(self):
 
 		return file_doc.file_url
 	except Exception as err:
+		frappe.log_error("WhatsApp Report Sender", frappe.get_traceback())
 		return False
