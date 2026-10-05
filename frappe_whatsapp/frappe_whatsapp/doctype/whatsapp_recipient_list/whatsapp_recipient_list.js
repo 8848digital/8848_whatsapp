@@ -1,4 +1,17 @@
+// Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use
+// of this file, via any medium, is strictly prohibited without prior
+// written permission from 8848 Digital LLP.
+// Copyright (c) 2022, Shridhar Patil and contributors
+// For license information, please see license.txt
+
 frappe.ui.form.on('WhatsApp Recipient List', {
+    /**
+     * Wire the import button and add the Add Test Recipient and Validate Recipients buttons.
+     *
+     * @param {Object} frm - The WhatsApp Recipient List form.
+     * @returns {void}
+     */
     refresh: function(frm) {
         frm.fields_dict.import_button.onclick = function() {
             if(!frm.doc.doctype_to_import || !frm.doc.mobile_field) {
@@ -16,8 +29,8 @@ frappe.ui.form.on('WhatsApp Recipient List', {
                 }
             }
             
-            frappe.call({
-                method: 'frappe_whatsapp.utils.bulk_messaging.import_recipients',
+            frappe_whatsapp.call({
+                method: 'frappe_whatsapp.frappe_whatsapp.api.v1.bulk_messaging.import_recipients',
                 args: {
                     list_name: frm.doc.name,
                     doctype: frm.doc.doctype_to_import,
@@ -27,9 +40,9 @@ frappe.ui.form.on('WhatsApp Recipient List', {
                     limit: frm.doc.import_limit,
                     data_fields: frm.doc.data_fields
                 },
-                callback: function(r) {
-                    if(r.message) {
-                        frappe.msgprint(__(`${r.message} recipients imported successfully`));
+                callback: function(imported_count) {
+                    if(imported_count) {
+                        frappe.msgprint(__("{0} recipients imported successfully", [imported_count]));
                         frm.reload_doc();
                     }
                 }

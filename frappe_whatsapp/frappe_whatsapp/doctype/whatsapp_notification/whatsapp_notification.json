@@ -24,10 +24,14 @@
   "attach",
   "attach_from_field",
   "file_name",
+  "whatsapp_account",
+  "recipients_section",
+  "recipients",
   "section_break_11",
   "condition",
   "column_break_12",
   "fields",
+  "button_fields",
   "property_section",
   "set_property_after_alert",
   "property_value",
@@ -47,11 +51,12 @@
   },
   {
    "depends_on": "eval:doc.notification_type == \"Scheduler Event\"",
+   "description": "Tip: You can use \"Custom\" when you don\u2019t want a default frequency, but you must set up the custom schedule manually after selecting this option.",
    "fieldname": "event_frequency",
    "fieldtype": "Select",
    "label": "Event Frequency",
    "mandatory_depends_on": "eval:doc.script_type == \"Scheduler Event\"",
-   "options": "All\nHourly\nDaily\nWeekly\nMonthly\nYearly\nHourly Long\nDaily Long\nWeekly Long\nMonthly Long"
+   "options": "All\nHourly\nDaily\nWeekly\nMonthly\nYearly\nHourly Long\nDaily Long\nWeekly Long\nMonthly Long\nCustom"
   },
   {
    "depends_on": "eval:doc.notification_type==='DocType Event'",
@@ -106,8 +111,8 @@
    "description": "Mobile number field",
    "fieldname": "field_name",
    "fieldtype": "Data",
-   "label": "Field Name",
-   "mandatory_depends_on": "eval:['DocType Event'].includes(doc.notification_type)"
+   "label": "Field Name (Phone Number)",
+   "mandatory_depends_on": "eval:['DocType Event'].includes(doc.notification_type) && !(doc.recipients && doc.recipients.length)"
   },
   {
    "fieldname": "column_break_12",
@@ -208,11 +213,37 @@
    "label": "Notification Name",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "description": "fields to replace button variables, separated by comma",
+   "fieldname": "button_fields",
+   "fieldtype": "Data",
+   "label": "Button Fields"
+  },
+  {
+   "fetch_from": "template.whatsapp_account",
+   "fetch_if_empty": 1,
+   "fieldname": "whatsapp_account",
+   "fieldtype": "Link",
+   "label": "WhatsApp Account",
+   "options": "WhatsApp Account"
+  },
+  {
+   "fieldname": "recipients_section",
+   "fieldtype": "Section Break",
+   "label": "Recipients by Role"
+  },
+  {
+   "description": "Sends to every enabled user holding these roles. Combines with Field Name: set either, or both.",
+   "fieldname": "recipients",
+   "fieldtype": "Table",
+   "label": "Recipients",
+   "options": "WhatsApp Notification Recipient"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-03 11:30:47.397819",
+ "modified": "2026-09-02 14:46:33.821117",
  "modified_by": "Administrator",
  "module": "Frappe Whatsapp",
  "name": "WhatsApp Notification",
@@ -232,6 +263,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

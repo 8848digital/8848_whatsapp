@@ -1,208 +1,192 @@
-"""Webhook."""
-import frappe
+# Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+# Proprietary and confidential. Unauthorized copying, distribution, or use
+# of this file, via any medium, is strictly prohibited without prior
+# written permission from 8848 Digital LLP.
+# Copyright (c) 2026, Shridhar Patil and contributors
+# For license information, please see license.txt
+
+"""
+Handle Meta's webhook: subscription check, incoming messages and status updates.
+
+The whitelisted endpoint Meta calls lives in
+frappe_whatsapp.frappe_whatsapp.api.v1.webhook; this file holds the logic.
+"""
+
 import json
-import requests
-import time
+
+import frappe
 from werkzeug.wrappers import Response
-import frappe.utils
+
+from frappe_whatsapp.utils.incoming_message import save_incoming_message
+from frappe_whatsapp.utils.meta_api import get_whatsapp_account
 
 
-@frappe.whitelist(allow_guest=True)
-def webhook():
-	"""Meta webhook."""
-	if frappe.request.method == "GET":
-		return get()
-	return post()
+def verify_subscription(form_dict):
+	"""
+	Answer Meta's GET check when the webhook URL is registered.
 
+	Parameters:
+		form_dict (dict, required): Query params with "hub.challenge" and "hub.verify_token".
 
-def get():
-	"""Get."""
-	hub_challenge = frappe.form_dict.get("hub.challenge")
-	webhook_verify_token = frappe.db.get_single_value(
-		"WhatsApp Settings", "webhook_verify_token"
+	Returns:
+		Response: The challenge echoed back as plain text.
+	"""
+	verify_token = form_dict.get("hub.verify_token")
+	webhook_verify_token = frappe.db.get_value(
+		"WhatsApp Account", {"webhook_verify_token": verify_token}, "webhook_verify_token"
 	)
+	if not webhook_verify_token:
+		frappe.throw("No matching WhatsApp account")
 
-	if frappe.form_dict.get("hub.verify_token") != webhook_verify_token:
+	if verify_token != webhook_verify_token:
 		frappe.throw("Verify token does not match")
 
-	return Response(hub_challenge, status=200)
+	return Response(form_dict.get("hub.challenge"), status=200)
 
-def post():
-	"""Post."""
-	data = frappe.local.form_dict
-	frappe.get_doc({
-		"doctype": "WhatsApp Notification Log",
-		"template": "Webhook",
-		"meta_data": json.dumps(data)
-	}).insert(ignore_permissions=True)
 
-	messages = []
+def handle_event(data):
+	"""
+	Process a webhook POST: save incoming messages, or apply status updates.
+
+	Every event is logged first, so nothing Meta sends is lost even if
+	processing fails.
+
+	Parameters:
+		data (dict, required): The webhook body.
+
+	Returns:
+		None
+	"""
+	frappe.get_doc(
+		{"doctype": "WhatsApp Notification Log", "template": "Webhook", "meta_data": json.dumps(data)}
+	).insert(ignore_permissions=True)
+
+	messages, phone_id = get_messages_and_phone_id(data)
+
+	if not messages:
+		update_status(get_first_change(data))
+		return
+
+	# Only message events carry metadata.phone_number_id. Status events
+	# (template status, delivery receipts) have none, which is why the account
+	# check guards just this branch and not the status updates above.
+	account = get_whatsapp_account(phone_id) if phone_id else None
+	if not account:
+		return
+
+	profile_name = get_sender_profile_name(data)
+	for message in messages:
+		save_incoming_message(message, account, profile_name)
+
+
+def get_messages_and_phone_id(data):
+	"""
+	Pull the messages and receiving phone number id out of the webhook body.
+
+	Meta normally sends "entry" as a list; some test payloads send it as a
+	single object, which the KeyError fallback handles.
+
+	Parameters:
+		data (dict, required): The webhook body.
+
+	Returns:
+		tuple: (messages list, phone_number_id or None)
+	"""
 	try:
-		messages = data["entry"][0]["changes"][0]["value"].get("messages", [])
+		value = data["entry"][0]["changes"][0]["value"]
+		return value.get("messages", []), value.get("metadata", {}).get("phone_number_id")
 	except KeyError:
-		messages = data["entry"]["changes"][0]["value"].get("messages", [])
-	sender_profile_name = next(
-		(
-			contact.get("profile", {}).get("name")
-			for entry in data.get("entry", [])
-			for change in entry.get("changes", [])
-			for contact in change.get("value", {}).get("contacts", [])
-		),
-		None,
-	)
+		return data["entry"]["changes"][0]["value"].get("messages", []), None
 
 
-	if messages:
-		for message in messages:
-			message_type = message['type']
-			is_reply = True if message.get('context') and 'forwarded' not in message.get('context') else False
-			reply_to_message_id = message['context']['id'] if is_reply else None
-			if message_type == 'text':
-				frappe.get_doc({
-					"doctype": "WhatsApp Message",
-					"type": "Incoming",
-					"from": message['from'],
-					"message": message['text']['body'],
-					"message_id": message['id'],
-					"reply_to_message_id": reply_to_message_id,
-					"is_reply": is_reply,
-					"content_type":message_type,
-					"profile_name":sender_profile_name
-				}).insert(ignore_permissions=True)
-			elif message_type == 'reaction':
-				frappe.get_doc({
-					"doctype": "WhatsApp Message",
-					"type": "Incoming",
-					"from": message['from'],
-					"message": message['reaction']['emoji'],
-					"reply_to_message_id": message['reaction']['message_id'],
-					"message_id": message['id'],
-					"content_type": "reaction",
-					"profile_name":sender_profile_name
-				}).insert(ignore_permissions=True)
-			elif message_type == 'interactive':
-				frappe.get_doc({
-					"doctype": "WhatsApp Message",
-					"type": "Incoming",
-					"from": message['from'],
-					"message": message['interactive']['nfm_reply']['response_json'],
-					"message_id": message['id'],
-					"reply_to_message_id": reply_to_message_id,
-					"is_reply": is_reply,
-					"content_type": "flow",
-					"profile_name":sender_profile_name
-				}).insert(ignore_permissions=True)
-			elif message_type in ["image", "audio", "video", "document"]:
-				settings = frappe.get_doc(
-							"WhatsApp Settings", "WhatsApp Settings",
-						)
-				token = settings.get_password("token")
-				url = f"{settings.url}/{settings.version}/"
+def get_first_change(data):
+	"""
+	The first change object of the webhook body (status updates come one at a time).
+
+	Parameters:
+		data (dict, required): The webhook body.
+
+	Returns:
+		dict: e.g. {"field": "messages", "value": {...}}
+	"""
+	try:
+		return data["entry"][0]["changes"][0]
+	except KeyError:
+		return data["entry"]["changes"][0]
 
 
-				media_id = message[message_type]["id"]
-				headers = {
-					'Authorization': 'Bearer ' + token
+def get_sender_profile_name(data):
+	"""
+	The sender's WhatsApp profile name, from the first contact that has one.
 
-				}
-				response = requests.get(f'{url}{media_id}/', headers=headers)
+	Parameters:
+		data (dict, required): The webhook body.
 
-				if response.status_code == 200:
-					media_data = response.json()
-					media_url = media_data.get("url")
-					mime_type = media_data.get("mime_type")
-					file_extension = mime_type.split('/')[1]
+	Returns:
+		str | None: Profile name.
+	"""
+	changes = []
+	for entry in data.get("entry", []):
+		changes.extend(entry.get("changes", []))
 
-					media_response = requests.get(media_url, headers=headers)
-					if media_response.status_code == 200:
+	for change in changes:
+		contacts = change.get("value", {}).get("contacts", [])
+		if contacts:
+			return contacts[0].get("profile", {}).get("name")
 
-						file_data = media_response.content
-						file_name = f"{frappe.generate_hash(length=10)}.{file_extension}"
-
-						message_doc = frappe.get_doc({
-							"doctype": "WhatsApp Message",
-							"type": "Incoming",
-							"from": message['from'],
-							"message_id": message['id'],
-							"reply_to_message_id": reply_to_message_id,
-							"is_reply": is_reply,
-							"message": message[message_type].get("caption",f"/files/{file_name}"),
-							"content_type" : message_type,
-							"profile_name":sender_profile_name
-						}).insert(ignore_permissions=True)
-
-						file = frappe.get_doc(
-							{
-								"doctype": "File",
-								"file_name": file_name,
-								"attached_to_doctype": "WhatsApp Message",
-								"attached_to_name": message_doc.name,
-								"content": file_data,
-								"attached_to_field": "attach"
-							}
-						).save(ignore_permissions=True)
+	return None
 
 
-						message_doc.attach = file.file_url
-						message_doc.save()
-			elif message_type == "button":
-				frappe.get_doc({
-					"doctype": "WhatsApp Message",
-					"type": "Incoming",
-					"from": message['from'],
-					"message": message['button']['text'],
-					"message_id": message['id'],
-					"reply_to_message_id": reply_to_message_id,
-					"is_reply": is_reply,
-					"content_type": message_type,
-					"profile_name":sender_profile_name
-				}).insert(ignore_permissions=True)
-			else:
-				frappe.get_doc({
-					"doctype": "WhatsApp Message",
-					"type": "Incoming",
-					"from": message['from'],
-					"message_id": message['id'],
-					"message": message[message_type].get(message_type),
-					"content_type" : message_type,
-					"profile_name":sender_profile_name
-				}).insert(ignore_permissions=True)
+def update_status(change):
+	"""
+	Apply a template-status or message-status update from Meta.
 
-	else:
-		changes = None
-		try:
-			changes = data["entry"][0]["changes"][0]
-		except KeyError:
-			changes = data["entry"]["changes"][0]
-		update_status(changes)
-	return
+	Parameters:
+		change (dict, required): A change with "field" and "value".
 
-def update_status(data):
-	"""Update status hook."""
-	if data.get("field") == "message_template_status_update":
-		update_template_status(data['value'])
+	Returns:
+		None
+	"""
+	if change.get("field") == "message_template_status_update":
+		update_template_status(change["value"])
+	elif change.get("field") == "messages":
+		update_message_status(change["value"])
 
-	elif data.get("field") == "messages":
-		update_message_status(data['value'])
 
 def update_template_status(data):
-	"""Update template status."""
+	"""
+	Copy Meta's approval status onto the matching WhatsApp Template.
+
+	Parameters:
+		data (dict, required): Has "event" (new status) and "message_template_id".
+
+	Returns:
+		None
+	"""
 	frappe.db.sql(
 		"""UPDATE `tabWhatsApp Templates`
 		SET status = %(event)s
 		WHERE id = %(message_template_id)s""",
-		data
+		data,
 	)
 
-def update_message_status(data):
-	"""Update message status."""
-	id = data['statuses'][0]['id']
-	status = data['statuses'][0]['status']
-	conversation = data['statuses'][0].get('conversation', {}).get('id')
-	name = frappe.db.get_value("WhatsApp Message", filters={"message_id": id})
 
-	doc = frappe.get_doc("WhatsApp Message", name)
-	doc.status = status
-	if conversation:
-		doc.conversation_id = conversation
-	doc.save(ignore_permissions=True)
+def update_message_status(data):
+	"""
+	Copy a delivery status (sent, delivered, read...) onto the WhatsApp Message.
+
+	Parameters:
+		data (dict, required): Has "statuses": [{"id", "status", "conversation"}].
+
+	Returns:
+		None
+	"""
+	status_update = data["statuses"][0]
+	message_name = frappe.db.get_value("WhatsApp Message", filters={"message_id": status_update["id"]})
+
+	message_doc = frappe.get_doc("WhatsApp Message", message_name)
+	message_doc.status = status_update["status"]
+	conversation_id = status_update.get("conversation", {}).get("id")
+	if conversation_id:
+		message_doc.conversation_id = conversation_id
+	message_doc.save(ignore_permissions=True)

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+# Proprietary and confidential. Unauthorized copying, distribution, or use
+# of this file, via any medium, is strictly prohibited without prior
+# written permission from 8848 Digital LLP.
 # Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
 # MIT License. See LICENSE
 import os
@@ -49,15 +53,38 @@ FRAPPE_EXCLUSIONS = [
 
 
 def get_bench_path():
+	"""
+	Bench directory: the parent of the apps folder this script runs from.
+
+	Returns:
+		str: Absolute bench path.
+	"""
 	return Path(__file__).resolve().parents[4]
 
 
 class CodeCoverage:
+	"""Context manager that records coverage for the app while tests run, then saves the report."""
 	def __init__(self, with_coverage, app):
+		"""
+		Remember whether coverage was asked for and which app to measure.
+
+		Parameters:
+			with_coverage (bool, required): Record coverage at all.
+			app (str, required): App to measure.
+
+		Returns:
+			None
+		"""
 		self.with_coverage = with_coverage
 		self.app = app or "frappe"
 
 	def __enter__(self):
+		"""
+		Start coverage for the app's source, skipping files that are not app logic.
+
+		Returns:
+			None
+		"""
 		if self.with_coverage:
 			import os
 
@@ -75,6 +102,17 @@ class CodeCoverage:
 			self.coverage.start()
 
 	def __exit__(self, exc_type, exc_value, traceback):
+		"""
+		Stop coverage and save the report.
+
+		Parameters:
+			exc_type (type, optional): Exception type, if the block raised.
+			exc_value (Exception, optional): Exception raised.
+			traceback (traceback, optional): Its traceback.
+
+		Returns:
+			None
+		"""
 		if self.with_coverage:
 			self.coverage.stop()
 			self.coverage.save()

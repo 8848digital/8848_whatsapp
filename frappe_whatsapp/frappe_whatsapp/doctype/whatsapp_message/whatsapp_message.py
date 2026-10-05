@@ -1,230 +1,110 @@
+# Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+# Proprietary and confidential. Unauthorized copying, distribution, or use
+# of this file, via any medium, is strictly prohibited without prior
+# written permission from 8848 Digital LLP.
 # Copyright (c) 2022, Shridhar Patil and contributors
 # For license information, please see license.txt
-import json
+
 import frappe
 from frappe.model.document import Document
-from frappe.integrations.utils import make_post_request
-from urllib.parse import quote
+
+from frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_message import message_utils
+from frappe_whatsapp.utils.phone import format_number
+
 
 class WhatsAppMessage(Document):
-    """Send whats app messages."""
+	"""A WhatsApp message sent or received; outgoing ones are sent to Meta when created."""
 
-    def before_insert(self):
-        """Send message."""
-        if self.type == "Outgoing" and self.message_type != "Template":
-            if self.attach and not self.attach.startswith("http"):
-                link = frappe.utils.get_url() + "/" + quote(self.attach)
-            else:
-                link = self.attach
+	def validate(self):
+		"""
+		Make sure a WhatsApp Account is set.
 
-            data = {
-                "messaging_product": "whatsapp",
-                "to": self.format_number(self.to),
-                "type": self.content_type,
-            }
-            if self.is_reply and self.reply_to_message_id:
-                data["context"] = {"message_id": self.reply_to_message_id}
-            if self.content_type in ["document", "image", "video"]:
-                data[self.content_type.lower()] = {
-                    "link": link,
-                    "caption": self.message,
-                }
-            elif self.content_type == "reaction":
-                data["reaction"] = {
-                    "message_id": self.reply_to_message_id,
-                    "emoji": self.message,
-                }
-            elif self.content_type == "text":
-                data["text"] = {"preview_url": True, "body": self.message}
+		Returns:
+			None
+		"""
+		message_utils.set_default_account(self)
 
-            elif self.content_type == "audio":
-                data["text"] = {"link": link}
+	def before_insert(self):
+		"""
+		Send outgoing messages before they are saved, then create the sender's profile.
 
-            try:
-                self.notify(data)
-                self.status = "Success"
-            except Exception as e:
-                self.status = "Failed"
-                frappe.throw(f"Failed to send message {str(e)}")
-        elif self.type == "Outgoing" and self.message_type == "Template" and not self.message_id:
-            self.send_template()
+		Returns:
+			None
+		"""
+		message_utils.set_default_account(self)
+		# message_type is read-only in the form, so picking a template is what makes it a template message.
+		if self.template:
+			self.message_type = "Template"
 
-    def send_template(self):
-        """Send template."""
-        template = frappe.get_doc("WhatsApp Templates", self.template)
-        data = {
-            "messaging_product": "whatsapp",
-            "to": self.format_number(self.to),
-            "type": "template",
-            "template": {
-                "name": template.actual_name or template.template_name,
-                "language": {"code": template.language_code},
-                "components": [],
-            },
-        }
+		self.send_outgoing()
+		message_utils.create_profile(self)
 
-        if template.sample_values:
-            field_names = template.field_names.split(",") if template.field_names else template.sample_values.split(",")
-            parameters = []
-            template_parameters = []
+	def on_update(self):
+		"""
+		Keep the sender's WhatsApp Profile name up to date.
 
-            if self.body_param is not None:
-                params = list(json.loads(self.body_param).values())
-                for param in params:
-                    parameters.append({"type": "text", "text": param})
-                    template_parameters.append(param)
-            elif self.flags.custom_ref_doc:
-                custom_values = self.flags.custom_ref_doc
-                for field_name in field_names:
-                    value = custom_values.get(field_name.strip())
-                    parameters.append({"type": "text", "text": value})
-                    template_parameters.append(value)                    
+		Returns:
+			None
+		"""
+		message_utils.update_profile_name(self)
 
-            else:
-                ref_doc = frappe.get_doc(self.reference_doctype, self.reference_name)
-                for field_name in field_names:
-                    value = ref_doc.get_formatted(field_name.strip())
-                    parameters.append({"type": "text", "text": value})
-                    template_parameters.append(value)
+	def send_outgoing(self):
+		"""
+		Send this message to Meta if it is Outgoing (also used by bulk retry).
 
-            self.template_parameters = json.dumps(template_parameters)
-            data["template"]["components"].append(
-                {
-                    "type": "body",
-                    "parameters": parameters,
-                }
-            )
+		Returns:
+			None
+		"""
+		message_utils.send_outgoing(self)
 
-        if template.header_type:
-            if self.attach:
-                if template.header_type == 'IMAGE':
+	def send_template(self):
+		"""
+		Send this message's WhatsApp Template.
 
-                    if self.attach.startswith("http"):
-                        url = f'{self.attach}'
-                    else:
-                        url = f'{frappe.utils.get_url()}{self.attach}'
-                    data['template']['components'].append({
-                        "type": "header",
-                        "parameters": [{
-                            "type": "image",
-                            "image": {
-                                "link": url
-                            }
-                        }]
-                    })
+		Returns:
+			None
+		"""
+		message_utils.send_template(self)
 
-            elif template.sample:
-                if template.header_type == 'IMAGE':
-                    if template.sample.startswith("http"):
-                        url = f'{template.sample}'
-                    else:
-                        url = f'{frappe.utils.get_url()}{template.sample}'
-                    data['template']['components'].append({
-                        "type": "header",
-                        "parameters": [{
-                            "type": "image",
-                            "image": {
-                                "link": url
-                            }
-                        }]
-                    })
+	def notify(self, data):
+		"""
+		Post a ready-made payload to Meta for this message.
 
-        self.notify(data)
+		Parameters:
+			data (dict, required): Meta payload.
 
-    def notify(self, data):
-        """Notify."""
-        settings = frappe.get_doc(
-            "WhatsApp Settings",
-            "WhatsApp Settings",
-        )
-        token = settings.get_password("token")
+		Returns:
+			None
+		"""
+		message_utils.send_payload(self, data)
 
-        headers = {
-            "authorization": f"Bearer {token}",
-            "content-type": "application/json",
-        }
-        try:
-            response = make_post_request(
-                f"{settings.url}/{settings.version}/{settings.phone_id}/messages",
-                headers=headers,
-                data=json.dumps(data),
-            )
-            self.message_id = response["messages"][0]["id"]
+	def format_number(self, number):
+		"""
+		Drop a leading "+" from a number.
 
-        except Exception as e:
-            res = frappe.flags.integration_request.json().get("error", {})
-            error_message = res.get("Error", res.get("message"))
-            frappe.get_doc(
-                {
-                    "doctype": "WhatsApp Notification Log",
-                    "template": "Text Message",
-                    "meta_data": frappe.flags.integration_request.json(),
-                }
-            ).insert(ignore_permissions=True)
+		Parameters:
+			number (str, required): Phone number.
 
-            frappe.throw(msg=error_message, title=res.get("error_user_title", "Error"))
+		Returns:
+			str: The number without "+".
+		"""
+		return format_number(number)
 
-    def format_number(self, number):
-        """Format number."""
-        if number.startswith("+"):
-            number = number[1 : len(number)]
+	def send_read_receipt(self):
+		"""
+		Mark this incoming message as read on WhatsApp.
 
-        return number
+		Returns:
+			bool | None: True when Meta accepted it.
+		"""
+		return message_utils.send_read_receipt(self)
 
-    @frappe.whitelist()
-    def send_read_receipt(self):
-        data = {
-            "messaging_product": "whatsapp",
-            "status": "read",
-            "message_id": self.message_id
-        }
-
-        settings = frappe.get_doc(
-            "WhatsApp Settings",
-            "WhatsApp Settings",
-        )
-
-        token = settings.get_password("token")
-
-        headers = {
-            "authorization": f"Bearer {token}",
-            "content-type": "application/json",
-        }
-        try:
-            response = make_post_request(
-                f"{settings.url}/{settings.version}/{settings.phone_id}/messages",
-                headers=headers,
-                data=json.dumps(data),
-            )
-
-            if response.get("success"):
-                self.status = "marked as read"
-                self.save()
-                return response.get("success")
-
-        except Exception as e:
-            res = frappe.flags.integration_request.json().get("error", {})
-            error_message = res.get("Error", res.get("message"))
-            frappe.log_error("WhatsApp API Error", f"{error_message}\n{res}")
 
 def on_doctype_update():
-    frappe.db.add_index("WhatsApp Message", ["reference_doctype", "reference_name"])
+	"""
+	Index the reference columns; chat views look messages up by document.
 
-
-@frappe.whitelist()
-def send_template(to, reference_doctype, reference_name, template):
-    try:
-        doc = frappe.get_doc({
-            "doctype": "WhatsApp Message",
-            "to": to,
-            "type": "Outgoing",
-            "message_type": "Template",
-            "reference_doctype": reference_doctype,
-            "reference_name": reference_name,
-            "content_type": "text",
-            "template": template
-        })
-
-        doc.save()
-    except Exception as e:
-        raise e
+	Returns:
+		None
+	"""
+	frappe.db.add_index("WhatsApp Message", ["reference_doctype", "reference_name"])

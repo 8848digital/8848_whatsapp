@@ -1,79 +1,45 @@
+# Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+# Proprietary and confidential. Unauthorized copying, distribution, or use
+# of this file, via any medium, is strictly prohibited without prior
+# written permission from 8848 Digital LLP.
+# Copyright (c) 2025, Shridhar Patil and contributors
+# For license information, please see license.txt
+
 import frappe
-import json
 from frappe import _
 from frappe.model.document import Document
 
+from frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_recipient_list.recipient_import import import_recipients
+
 
 class WhatsAppRecipientList(Document):
+	"""A saved list of phone numbers (with per-recipient variables) for bulk messages."""
+
 	def validate(self):
-		self.validate_recipients()
-	
-	def validate_recipients(self):
-		if not self.is_new():
-			if not self.recipients:
-				frappe.throw(_("At least one recipient is required"))
-	
-	def import_list_from_doctype(self, doctype, mobile_field, name_field=None, filters=None, limit=None, data_fields=None):
-		"""Import recipients from another DocType"""
-		self.doctype_to_import = doctype
-		self.mobile_field = mobile_field
-		self.filters = filters
-		if data_fields:
-			self.data_fields = json.dumps(data_fields)
+		"""
+		A saved list must keep at least one recipient.
 
-		if limit:
-			self.import_limit = limit
+		Returns:
+			None
+		"""
+		if not self.is_new() and not self.recipients:
+			frappe.throw(_("At least one recipient is required"))
 
-		fields = [mobile_field]
-		if name_field:
-			fields.append(name_field)
-		if data_fields:
-			meta = frappe.get_meta(doctype)
-			# print(meta.fields)
-			for field in meta.fields:
-				if field.fieldname not in fields and field.fieldname in data_fields:
-					fields.append(field.fieldname)
-		# Get records from the doctype
-		records = frappe.get_all(
-			doctype,
-			filters=filters,
-			fields=fields,
-			limit=limit
-		)
-		
-		# Clear existing recipients
-		self.recipients = []
-		
-		# Add recipients
-		for record in records:
-			if not record.get(mobile_field):
-				continue
-				
-			# Format mobile number
-			mobile = record.get(mobile_field)
-			# Remove any non-numeric characters except '+'
-			mobile = ''.join(char for char in mobile if char.isdigit() or char == '+')
-			
-			if not mobile:
-				continue
+	def import_list_from_doctype(
+		self, doctype, mobile_field, name_field=None, filters=None, limit=None, data_fields=None
+	):
+		"""
+		Replace the recipients with records of another DocType.
 
-			recipient_data = {}
-			if data_fields:
-				for field in data_fields:
-					if record.get(field):
-						# Use field name as the variable name in recipient data
-						variable_name = field.lower().replace(" ", "_")
-						recipient_data[variable_name] = record.get(field)
+		Parameters:
+			doctype (str, required): DocType to read recipients from.
+			mobile_field (str, required): Field holding the mobile number.
+			name_field (str, optional): Field holding the recipient's name.
+			filters (dict, optional): Filters for the records.
+			limit (int, optional): Maximum records to import.
+			data_fields (list, optional): Fields kept as template variables.
 
-				
-			recipient = {
-				"mobile_number": mobile,
-				"recipient_data": json.dumps(recipient_data)
-			}
-			
-			if name_field and record.get(name_field):
-				recipient["recipient_name"] = record.get(name_field)
-				
-			self.append("recipients", recipient)
-		
-		return len(self.recipients)
+		Returns:
+			int: Number of recipients added.
+		"""
+		return import_recipients(self, doctype, mobile_field, name_field, filters, limit, data_fields)

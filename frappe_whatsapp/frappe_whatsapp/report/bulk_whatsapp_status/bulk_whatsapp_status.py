@@ -1,133 +1,99 @@
+# Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+# Proprietary and confidential. Unauthorized copying, distribution, or use
+# of this file, via any medium, is strictly prohibited without prior
+# written permission from 8848 Digital LLP.
+# Copyright (c) 2025, Shridhar Patil and contributors
+# For license information, please see license.txt
+
 import frappe
+
+# Report column -> WhatsApp Message status it counts.
+STATUS_COUNTS = {
+	"delivered_count": "delivered",
+	"read_count": "read",
+	"sent_count": "sent",
+	"failed_count": "failed",
+}
 
 
 def execute(filters=None):
-    if not filters:
-        filters = {}
-    
-    columns = get_columns()
-    data = get_data(filters)
-    
-    return columns, data
+	"""
+	Bulk WhatsApp Status: each submitted bulk message with its delivery counts.
+
+	Parameters:
+		filters (dict, optional): from_date, to_date, status, from_number.
+
+	Returns:
+		tuple: (columns, data)
+	"""
+	return get_columns(), get_data(filters or {})
+
 
 def get_columns():
-    return [
-        {
-            "fieldname": "name",
-            "label": "ID",
-            "fieldtype": "Link",
-            "options": "Bulk WhatsApp Message",
-            "width": 120
-        },
-        {
-            "fieldname": "title",
-            "label": "Title",
-            "fieldtype": "Data",
-            "width": 180
-        },
-        {
-            "fieldname": "creation",
-            "label": "Created On",
-            "fieldtype": "Datetime",
-            "width": 150
-        },
-        # {
-        #     "fieldname": "from_number",
-        #     "label": "From Number",
-        #     "fieldtype": "Link",
-        #     "options": "WhatsApp Number",
-        #     "width": 150
-        # },
-        {
-            "fieldname": "recipient_count",
-            "label": "Total Recipients",
-            "fieldtype": "Int",
-            "width": 120
-        },
-        {
-            "fieldname": "sent_count",
-            "label": "Messages Sent",
-            "fieldtype": "Int",
-            "width": 120
-        },
-        {
-            "fieldname": "delivered_count",
-            "label": "Delivered",
-            "fieldtype": "Int",
-            "width": 100
-        },
-        {
-            "fieldname": "read_count",
-            "label": "Read",
-            "fieldtype": "Int",
-            "width": 100
-        },
-        {
-            "fieldname": "failed_count",
-            "label": "Failed",
-            "fieldtype": "Int",
-            "width": 100
-        },
-        {
-            "fieldname": "status",
-            "label": "Status",
-            "fieldtype": "Data",
-            "width": 120
-        }
-    ]
+	"""
+	Report columns.
+
+	Returns:
+		list: Column definitions.
+	"""
+	return [
+		{"fieldname": "name", "label": "ID", "fieldtype": "Link", "options": "Bulk WhatsApp Message", "width": 120},
+		{"fieldname": "title", "label": "Title", "fieldtype": "Data", "width": 180},
+		{"fieldname": "creation", "label": "Created On", "fieldtype": "Datetime", "width": 150},
+		{"fieldname": "recipient_count", "label": "Total Recipients", "fieldtype": "Int", "width": 120},
+		{"fieldname": "sent_count", "label": "Messages Sent", "fieldtype": "Int", "width": 120},
+		{"fieldname": "delivered_count", "label": "Delivered", "fieldtype": "Int", "width": 100},
+		{"fieldname": "read_count", "label": "Read", "fieldtype": "Int", "width": 100},
+		{"fieldname": "failed_count", "label": "Failed", "fieldtype": "Int", "width": 100},
+		{"fieldname": "status", "label": "Status", "fieldtype": "Data", "width": 120},
+	]
+
 
 def get_data(filters):
-    conditions = ""
-    if filters.get("from_date") and filters.get("to_date"):
-        conditions += " AND creation BETWEEN %(from_date)s AND %(to_date)s"
-    
-    if filters.get("status"):
-        conditions += " AND status = %(status)s"
-        
-    if filters.get("from_number"):
-        conditions += " AND from_number = %(from_number)s"
-    
-    data = frappe.db.sql("""
-        SELECT 
-            name, 
-            title, 
-            creation, 
-            recipient_count, 
-            sent_count, 
-            status 
-        FROM 
-            `tabBulk WhatsApp Message` 
-        WHERE 
-            docstatus = 1 
-            {conditions}
-        ORDER BY 
-            creation DESC
-    """.format(conditions=conditions), filters, as_dict=1)
-    
-    # Fetch additional stats for each bulk message
-    for row in data:
-        # Get delivered count
-        row["delivered_count"] = frappe.db.count("WhatsApp Message", {
-            "bulk_message_reference": row.name,
-            "status": "delivered"
-        })
-        
-        # Get read count
-        row["read_count"] = frappe.db.count("WhatsApp Message", {
-            "bulk_message_reference": row.name,
-            "status": "read"
-        })
+	"""
+	Submitted bulk messages, newest first, with message counts per delivery status.
 
-         # Get read count
-        row["sent_count"] = frappe.db.count("WhatsApp Message", {
-            "bulk_message_reference": row.name,
-            "status": "sent"
-        })
-        
-        # Get failed count
-        row["failed_count"] = frappe.db.count("WhatsApp Message", {
-            "bulk_message_reference": row.name,
-            "status": "failed"
-        })
-    
-    return data
+	Parameters:
+		filters (dict, required): Report filters.
+
+	Returns:
+		list: Rows.
+	"""
+	query_filters = {"docstatus": 1}
+	if filters.get("from_date") and filters.get("to_date"):
+		query_filters["creation"] = ["between", [filters["from_date"], filters["to_date"]]]
+	if filters.get("status"):
+		query_filters["status"] = filters["status"]
+	if filters.get("from_number"):
+		query_filters["from_number"] = filters["from_number"]
+
+	rows = frappe.get_all(
+		"Bulk WhatsApp Message",
+		filters=query_filters,
+		fields=["name", "title", "creation", "recipient_count", "sent_count", "status"],
+		order_by="creation desc",
+	)
+
+	for row in rows:
+		row.update(get_status_counts(row.name))
+
+	return rows
+
+
+def get_status_counts(bulk_message_name):
+	"""
+	How many of a bulk message's WhatsApp Messages are in each delivery status.
+
+	Parameters:
+		bulk_message_name (str, required): Bulk WhatsApp Message name.
+
+	Returns:
+		dict: {"delivered_count": int, "read_count": int, "sent_count": int, "failed_count": int}
+	"""
+	counts = {}
+	for column, status in STATUS_COUNTS.items():
+		counts[column] = frappe.db.count(
+			"WhatsApp Message", {"bulk_message_reference": bulk_message_name, "status": status}
+		)
+
+	return counts

@@ -1,6 +1,17 @@
+// Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use
+// of this file, via any medium, is strictly prohibited without prior
+// written permission from 8848 Digital LLP.
 // Copyright (c) 2022, Shridhar Patil and contributors
 // For license information, please see license.txt
 frappe.notification = {
+	/**
+	 * Fill the field pickers (phone field, date field, value-changed and set-property fields)
+	 * from the reference DocType's fields.
+	 *
+	 * @param {object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	setup_fieldname_select: function (frm) {
 		// get the doctype to update fields
 		if (!frm.doc.reference_doctype) {
@@ -47,38 +58,53 @@ frappe.notification = {
 			frm.set_df_property("set_property_after_alert", "options", [""].concat(options));
 		});
 	},
+	/**
+	 * Add the "Get Alerts for Today" button, which sends today's date-based notifications now.
+	 *
+	 * @param {object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	setup_alerts_button: function (frm) {
-		// body...
-		frm.add_custom_button(__('Get Alerts for Today'), function () {
-            frappe.call({
-                method: 'frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_notification.whatsapp_notification.call_trigger_notifications',
-                args: {
-                    method: 'daily' 
-                },
-                callback: function (response) {
-                    if (response.message && response.message.length > 0) {
-                    } else {
-                        frappe.msgprint(__('No alerts for today'));
-                    }
-                },
-                error: function (error) {
-                    frappe.msgprint(__('Failed to trigger notifications'));
-                }
-            });
-        });
+		frm.add_custom_button(__("Get Alerts for Today"), () => {
+			frappe_whatsapp.call({
+				method: "frappe_whatsapp.frappe_whatsapp.api.v1.notification.call_trigger_notifications",
+				freeze: true,
+				callback() {
+					frappe.show_alert({ message: __("Today's alerts were sent"), indicator: "green" });
+				},
+			});
+		});
 	}
 };
 
 
 frappe.ui.form.on('WhatsApp Notification', {
+	/**
+	 * Load the template preview and set up the field picker and alerts button.
+	 *
+	 * @param {Object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	refresh: function(frm) {
 		frm.trigger("load_template")
 		frappe.notification.setup_fieldname_select(frm);
 		frappe.notification.setup_alerts_button(frm);
 	},
+	/**
+	 * Reload the template preview when the template changes.
+	 *
+	 * @param {Object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	template: function(frm){
 		frm.trigger("load_template")
 	},
+	/**
+	 * Show the template text, and the attachment options when its header is a document or image.
+	 *
+	 * @param {Object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	load_template: function(frm){
 		frappe.db.get_value(
 			"WhatsApp Templates",
@@ -109,6 +135,12 @@ frappe.ui.form.on('WhatsApp Notification', {
 			}
 		)
 	},
+	/**
+	 * Require a file name for a custom attachment, and untick the document print.
+	 *
+	 * @param {Object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	custom_attachment: function(frm){
 		if(frm.doc.custom_attachment == 1 &&  ['DOCUMENT', "IMAGE"].includes(frm.doc.header_type)){
 			frm.set_df_property('file_name', 'reqd', frm.doc.custom_attachment)
@@ -116,17 +148,27 @@ frappe.ui.form.on('WhatsApp Notification', {
 			frm.set_df_property('file_name', 'reqd', 0)
 		}
 
-		// frm.toggle_display("attach_document_print", !frm.doc.custom_attachment);
 		if(frm.doc.header_type){
 			frm.set_value("attach_document_print", !frm.doc.custom_attachment)
 		}
 	},
+	/**
+	 * Attaching the document print and a custom file are either-or.
+	 *
+	 * @param {Object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	attach_document_print: function(frm){
-		// frm.toggle_display("custom_attachment", !frm.doc.attach_document_print);
 		if(['DOCUMENT', "IMAGE"].includes(frm.doc.header_type)){
 			frm.set_value("custom_attachment", !frm.doc.attach_document_print)
 		}
 	},
+	/**
+	 * Refresh the field picker for the new DocType.
+	 *
+	 * @param {Object} frm - The WhatsApp Notification form.
+	 * @returns {void}
+	 */
 	reference_doctype: function (frm) {
 		frappe.notification.setup_fieldname_select(frm);
 	},

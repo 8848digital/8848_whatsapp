@@ -1,58 +1,87 @@
-Frappe Whatsapp
+<!--
+Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+Proprietary and confidential. Unauthorized copying, distribution, or use
+of this file, via any medium, is strictly prohibited without prior
+written permission from 8848 Digital LLP.
+-->
+<!--
+Copyright (c) 2026, Shridhar Patil and contributors
+For license information, please see license.txt
+-->
+# Frappe WhatsApp
 
-[Docs](https://shridarpatil.github.io/frappe_whatsapp/)
+## Overview
 
-WhatsApp integration for frappe. Use directly meta API's without any 3rd party integration.
+WhatsApp for Frappe/ERPNext using Meta's WhatsApp Cloud API directly, with no
+third-party provider in between. Teams use it to message customers from any
+document, send automatic alerts (invoice submitted, payment due, OTPs), run
+bulk campaigns, collect form answers through WhatsApp Flows, and keep every
+conversation in ERPNext. This is 8848 Digital's fork of
+[shridarpatil/frappe_whatsapp](https://github.com/shridarpatil/frappe_whatsapp)
+([upstream documentation](https://shridarpatil.github.io/frappe_whatsapp/)).
 
-[![Whatsapp Video](https://img.youtube.com/vi/nq5Kcc5e1oc/0.jpg)](https://www.youtube.com/watch?v=nq5Kcc5e1oc)
+## Key DocTypes
 
+| DocType | Owned by this app? | Purpose |
+| ------- | ------------------ | ------- |
+| WhatsApp Account | Yes | A WhatsApp Business phone number and its Meta credentials; one can be the default for incoming and outgoing messages. |
+| WhatsApp Settings | Yes | Site-wide defaults: default accounts, and where role recipients' phone numbers come from. |
+| WhatsApp Message | Yes | Every message sent or received, with delivery status (sent, delivered, read). |
+| WhatsApp Templates | Yes | Message templates, created here and submitted to Meta for approval, or pulled from Meta. |
+| WhatsApp Notification | Yes | A rule that sends a template when a document event happens, on a date, or on a schedule. |
+| WhatsApp Flow | Yes | An in-chat form (screens and fields) published to WhatsApp; answers come back as messages. |
+| Bulk WhatsApp Message | Yes | One template sent to many recipients in the background, with progress and retry. |
+| WhatsApp Recipient List | Yes | A reusable list of numbers, imported from any DocType, with per-person variables. |
+| WhatsApp Profiles | Yes | Contacts seen in conversations (number and WhatsApp profile name). |
+| WhatsApp Report Sender | Yes | Turns a print format or a report into a PDF that can be sent on WhatsApp. |
+| WhatsApp Notification Log | Yes | Raw log of webhook events and send results, for troubleshooting. |
 
-[![YouTube](http://i.ytimg.com/vi/TncXQ0UW5UM/hqdefault.jpg)](https://www.youtube.com/watch?v=TncXQ0UW5UM)
+## Features
 
+- Connect several WhatsApp Business numbers and choose which one sends or receives by default.
+- Chat two-way: incoming texts, replies, reactions, button and list answers, orders, images, audio, video and documents are saved as WhatsApp Messages.
+- Send free-form messages within Meta's 24-hour window: text, media, reactions, reply buttons (up to 3) and option lists (up to 10).
+- Create templates (text/image/document headers, footers, quick-reply, website, phone, OTP copy-code, catalog and multi-product buttons) and sync them with Meta.
+- Send a template from any document with the "Send To Whatsapp" menu option.
+- Automatic notifications on document events (insert, save, submit, cancel, delete...), on dates (days before/after a date field) or on a schedule (hourly to monthly), with conditions, document print or file attachments, and a field set after sending.
+- Notify people by role: everyone holding a role is messaged, using their User or Employee number, in the background.
+- Bulk campaigns from a recipient list or typed numbers, with common or per-recipient template values, product messages, a progress bar and one-click retry of failed messages.
+- Build WhatsApp Flows (forms) screen by screen, publish them, send a test, and import or sync existing flows from Meta.
+- Automatic read receipts (blue ticks) per account, or a "Mark as read" button.
+- Turn a print format or report into a PDF ready to send on WhatsApp.
+- Bulk WhatsApp Status report: delivered, read and failed counts per campaign.
 
+## Integrations
 
-![whatsapp](https://user-images.githubusercontent.com/11792643/203741234-29edeb1b-e2f9-4072-98c4-d73a84b48743.gif)
+- **Meta WhatsApp Cloud API** (messages, templates, flows, media, webhooks) — see [SETUP.md](./SETUP.md#meta-whatsapp-cloud-api)
 
-Note: If your not using live credential follow the [step no 2](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started) to add the number on meta to which your are sending message
+## Installation
 
-### Chat app You can also install
-[whatsapp\_chat](https://frappecloud.com/marketplace/apps/whatsapp_chat) along with this app to send and receive message like a messenger Installation Steps
+    bench get-app frappe_whatsapp https://github.com/8848digital/8848_whatsapp
+    bench --site <site_name> install-app frappe_whatsapp
+    bench --site <site_name> migrate
 
-### Step 1) One time to get app 
-`bench get-app https://github.com/shridarpatil/frappe_whatsapp` 
-### Step 2) to install app on any instance/site
-`bench --site [sitename] install-app frappe_whatsapp` 
+Then follow [SETUP.md](./SETUP.md) to connect a WhatsApp number.
 
-### Send whatsapp notification from frappe app based on docevents. 
-### Get your whats app credentials 
-https://developers.facebook.com/docs/whatsapp/cloud-api/get-started 
-#### Enter whatsapp credentials ![image](https://user-images.githubusercontent.com/11792643/198827382-90283b36-f8ab-430e-a909-1b600d6f5da4.png) 
+## App Structure
 
-#### Create Template ![image](https://user-images.githubusercontent.com/11792643/198827355-ebf9c113-f39a-4d37-98f7-38f719fb2d1f.png) Supports all docevents 
+See [frappe_whatsapp/frappe_whatsapp/README.md](./frappe_whatsapp/frappe_whatsapp/README.md) for the module
+layout. The app follows the 8848 Digital skills conventions: whitelisted endpoints only under
+`frappe_whatsapp/frappe_whatsapp/api/v1/`, thin DocType controllers with their logic in sibling
+files, scheduler and background jobs in `tasks.py`, and shared helpers in `utils/`.
 
-#### Create notifications ![whatsapp_notification](https://user-images.githubusercontent.com/11792643/198827295-f6d756a3-6289-40b3-99ea-0394efb61041.png) 
+API responses from `/api/method/frappe_whatsapp...` use the standard envelope
+`{"status", "status_code", "message", "data", "errors"}`; the payload is in `data`. The two
+endpoints Meta calls (the webhook and the Flow endpoint) are left in Meta's own format. In Desk
+code, call these endpoints with `frappe_whatsapp.call(...)`, which passes `data` to the
+callback and shows `message` when a call fails.
 
-### Sending text message without creating template Create an entry in the WhatsApp message. On save it will trigger and whats app API to send a message ![image](https://user-images.githubusercontent.com/11792643/211518862-de2d3fbc-69c8-48e1-b000-8eebf20b75ab.png) WhatsApp messages are received via WhatsApp cloud API.![image](https://user-images.githubusercontent.com/11792643/211519625-a528abe2-ba24-46a4-bcbc-170f6b4e27fb.png) ![outgoing (1)](https://user-images.githubusercontent.com/11792643/211518647-45bfaa00-b06a-49c6-a3b3-3cf801d5ec68.gif) 
+## Maintainers
 
-### Sending a template using custom _dict() insted of a doctype.
-This can be very useful for features where it is not possible to get the values directly from the doctype.
-Just create a script and populate variable called "_data_list":
-`doc.set("_data_list", data_list)`
+8848 Digital (fork maintainers). Original app by Shridhar Patil and contributors.
 
-Example:
-![image](https://github.com/user-attachments/assets/7496b081-df2b-41dc-bdcb-ed7e5f464698)
+## License
 
-### Incomming message 
-* Setup webhook on meta 
-* Add verify token on meta and update the same on whatsapp settings 
-* Add webhook url on meta
-`<domain >/api/method/frappe_whatsapp.utils.webhook.webhook` 
-* Add apropriate webhook fields 
-* `messages` to receive message 
-* add other required web fields 
-
-### Upcoming features 
-* Update templates on facebook dev. 
-* Display template status 
- 
-#### License MIT
+Proprietary — Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+Based on Frappe WhatsApp by Shridhar Patil, whose MIT license notice is kept
+in [license.txt](license.txt) as that license requires.

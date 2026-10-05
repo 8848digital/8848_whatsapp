@@ -1,3 +1,10 @@
+# Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+# Proprietary and confidential. Unauthorized copying, distribution, or use
+# of this file, via any medium, is strictly prohibited without prior
+# written permission from 8848 Digital LLP.
+# Copyright (c) 2022, Shridhar Patil and contributors
+# For license information, please see license.txt
+
 from . import __version__ as app_version
 
 app_name = "frappe_whatsapp"
@@ -7,214 +14,67 @@ app_description = "WhatsApp integration for frappe"
 app_email = "shridhar.p@zerodha.com"
 app_license = "MIT"
 
-# Includes in <head>
-# ------------------
-
-# include js, css files in header of desk.html
-# app_include_css = "/assets/frappe_whatsapp/css/frappe_whatsapp.css"
+# Desk-wide script: the "Send To Whatsapp" menu option on every form.
 app_include_js = "/assets/frappe_whatsapp/js/frappe_whatsapp.js"
-# app_include_js = ["frappe_whatsapp.js"]
 
-# include js, css files in header of web template
-# web_include_css = "/assets/frappe_whatsapp/css/frappe_whatsapp.css"
-# web_include_js = "/assets/frappe_whatsapp/js/frappe_whatsapp.js"
-
-# include custom scss in every website theme (without file extension ".scss")
-# website_theme_scss = "frappe_whatsapp/public/scss/website"
-
-# include js, css files in header of web form
-# webform_include_js = {"doctype": "public/js/doctype.js"}
-# webform_include_css = {"doctype": "public/css/doctype.css"}
-
-# include js in page
-# page_js = {"page" : "public/js/file.js"}
-
-# include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
-# doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
-# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
-
-# Home Pages
-# ----------
-
-# application home page (will override Website Settings)
-# home_page = "login"
-
-# website user home page (by Role)
-# role_home_page = {
-#   "Role": "home_page"
-# }
-
-# Generators
-# ----------
-
-# automatically create page for each record of this doctype
-# website_generators = ["Web Page"]
-
-# Jinja
-# ----------
-
-# add methods and filters to jinja environment
-# jinja = {
-#   "methods": "frappe_whatsapp.utils.jinja_methods",
-#   "filters": "frappe_whatsapp.utils.jinja_filters"
-# }
-
-# Installation
-# ------------
-
-# before_install = "frappe_whatsapp.install.before_install"
-# after_install = "frappe_whatsapp.install.after_install"
-
-# Uninstallation
-# ------------
-
-# before_uninstall = "frappe_whatsapp.uninstall.before_uninstall"
-# after_uninstall = "frappe_whatsapp.uninstall.after_uninstall"
-
-# Desk Notifications
-# ------------------
-# See frappe.core.notifications.get_notification_config
-
-# notification_config = "frappe_whatsapp.notifications.get_notification_config"
-
-# Permissions
-# -----------
-# Permissions evaluated in scripted ways
-
-# permission_query_conditions = {
-#   "Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-#   "Event": "frappe.desk.doctype.event.event.has_permission",
-# }
-
-# DocType Class
-# ---------------
-# Override standard doctype classes
-
-# override_doctype_class = {
-#   "ToDo": "custom_app.overrides.CustomToDo"
-# }
-
-# Document Events
-# ---------------
-# Hook on document methods and events
-
-# doc_events = {
-#   "*": {
-#       "on_update": "method",
-#       "on_cancel": "method",
-#       "on_trash": "method"
-#   }
-# }
-
-# Scheduled Tasks
-# ---------------
+_TASKS = "frappe_whatsapp.frappe_whatsapp.tasks"
 
 scheduler_events = {
-    "all": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_all"
-    ],
-    "hourly": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_hourly"
-    ],
-    "hourly_long": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_hourly_long"
-    ],
-    "daily": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_daily",
-        "frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_notification.whatsapp_notification.trigger_notifications",
-    ],
-    "daily_long": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_daily_long",
-    ],
-    "weekly": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_weekly",
-    ],
-    "weekly_long": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_weekly_long",
-    ],
-    "monthly": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_monthly",
-    ],
-    "monthly_long": [
-        "frappe_whatsapp.utils.trigger_whatsapp_notifications_monthly_long",
-    ],
+	"all": [f"{_TASKS}.send_all_frequency_notifications"],
+	"hourly": [f"{_TASKS}.send_hourly_notifications"],
+	"hourly_long": [f"{_TASKS}.send_hourly_long_notifications"],
+	"daily": [
+		f"{_TASKS}.send_daily_notifications",
+		f"{_TASKS}.send_date_based_notifications",
+	],
+	"daily_long": [f"{_TASKS}.send_daily_long_notifications"],
+	"weekly": [f"{_TASKS}.send_weekly_notifications"],
+	"weekly_long": [f"{_TASKS}.send_weekly_long_notifications"],
+	"monthly": [f"{_TASKS}.send_monthly_notifications"],
+	"monthly_long": [f"{_TASKS}.send_monthly_long_notifications"],
 }
 
-# Testing
-# -------
-
-# before_tests = "frappe_whatsapp.install.before_tests"
-
-# Overriding Methods
-# ------------------------------
-#
-# override_whitelisted_methods = {
-#   "frappe.desk.doctype.event.event.get_events": "frappe_whatsapp.event.get_events"
-# }
-#
-# each overriding function accepts a `data` argument;
-# generated from the base implementation of the doctype dashboard,
-# along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-#   "Task": "frappe_whatsapp.task.get_dashboard_data"
-# }
-
-# exempt linked doctypes from being automatically cancelled
-#
-# auto_cancel_exempted_doctypes = ["Auto Repeat"]
-
-
-# User Data Protection
-# --------------------
-
-# user_data_fields = [
-#   {
-#       "doctype": "{doctype_1}",
-#       "filter_by": "{filter_by}",
-#       "redact_fields": ["{field_1}", "{field_2}"],
-#       "partial": 1,
-#   },
-#   {
-#       "doctype": "{doctype_2}",
-#       "filter_by": "{filter_by}",
-#       "partial": 1,
-#   },
-#   {
-#       "doctype": "{doctype_3}",
-#       "strict": False,
-#   },
-#   {
-#       "doctype": "{doctype_4}"
-#   }
-# ]
-
-# Authentication and authorization
-# --------------------------------
-
-# auth_hooks = [
-#   "frappe_whatsapp.auth.validate"
-# ]
-
-
+# WhatsApp Notifications can watch any DocType, so every document event is checked.
+# (Helper names start with "_" so Frappe does not read them as hooks.)
+_NOTIFICATION_EVENT = "frappe_whatsapp.frappe_whatsapp.notification_events.run_notifications_for_doc_event"
 doc_events = {
-    "*": {
-        "before_insert": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "after_insert": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "before_validate": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "validate": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "on_update": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "before_submit": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "on_submit": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "before_cancel": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "on_cancel": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "on_trash": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "after_delete": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "before_update_after_submit": "frappe_whatsapp.utils.run_server_script_for_doc_event",
-        "on_update_after_submit": "frappe_whatsapp.utils.run_server_script_for_doc_event"
-    }
+	"*": {
+		"before_insert": _NOTIFICATION_EVENT,
+		"after_insert": _NOTIFICATION_EVENT,
+		"before_validate": _NOTIFICATION_EVENT,
+		"validate": _NOTIFICATION_EVENT,
+		"on_update": _NOTIFICATION_EVENT,
+		"before_submit": _NOTIFICATION_EVENT,
+		"on_submit": _NOTIFICATION_EVENT,
+		"before_cancel": _NOTIFICATION_EVENT,
+		"on_cancel": _NOTIFICATION_EVENT,
+		"on_trash": _NOTIFICATION_EVENT,
+		"after_delete": _NOTIFICATION_EVENT,
+		"before_update_after_submit": _NOTIFICATION_EVENT,
+		"on_update_after_submit": _NOTIFICATION_EVENT,
+	}
 }
+
+# Endpoints moved to frappe_whatsapp.frappe_whatsapp.api.v1. The old paths keep
+# working because Meta (webhook, flow endpoint) and other apps may still call them.
+_API = "frappe_whatsapp.frappe_whatsapp.api.v1"
+override_whitelisted_methods = {
+	"frappe_whatsapp.utils.webhook.webhook": f"{_API}.webhook.webhook",
+	"frappe_whatsapp.frappe_whatsapp.api.flow_endpoint.handle_flow_request": f"{_API}.flow_endpoint.handle_flow_request",
+	"frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_message.whatsapp_message.send_template": f"{_API}.message.send_template",
+	"frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_templates.whatsapp_templates.fetch": f"{_API}.template.fetch",
+	"frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_notification.whatsapp_notification.call_trigger_notifications": f"{_API}.notification.call_trigger_notifications",
+	"frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_flow.whatsapp_flow.get_whatsapp_flows": f"{_API}.flow.get_whatsapp_flows",
+	"frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_flow.whatsapp_flow.import_flow_from_whatsapp": f"{_API}.flow.import_flow_from_whatsapp",
+	"frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_flow.whatsapp_flow.sync_all_flows": f"{_API}.flow.sync_all_flows",
+	"frappe_whatsapp.utils.bulk_messaging.get_progress": f"{_API}.bulk_messaging.get_progress",
+	"frappe_whatsapp.utils.bulk_messaging.retry_failed": f"{_API}.bulk_messaging.retry_failed",
+	"frappe_whatsapp.utils.bulk_messaging.import_recipients": f"{_API}.bulk_messaging.import_recipients",
+}
+
+# Wraps frappe_whatsapp API responses in the standard envelope (Meta callbacks are skipped).
+after_request = ["frappe_whatsapp.utils.api_handlers.response_formatter.format_frappe_response_to_custom"]
+
+# Fixtures exported with `bench --site <site> 8848-export-fixtures` (see commands/README.md).
+custom_fixtures = []
+commands = ["frappe_whatsapp.commands.export_fixtures.export_fixtures"]

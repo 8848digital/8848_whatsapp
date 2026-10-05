@@ -1,16 +1,28 @@
+// Copyright (c) 2026 8848 Digital LLP. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use
+// of this file, via any medium, is strictly prohibited without prior
+// written permission from 8848 Digital LLP.
+// Copyright (c) 2022, Shridhar Patil and contributors
+// For license information, please see license.txt
+
 frappe.ui.form.on('Bulk WhatsApp Message', {
+    /**
+     * Add the Check Progress and Retry Failed Messages buttons once the batch is sent.
+     *
+     * @param {Object} frm - The Bulk WhatsApp Message form.
+     * @returns {void}
+     */
     refresh: function(frm) {
         // Add progress bar
         if(frm.doc.docstatus === 1 && frm.doc.status != 'Draft') {
             frm.add_custom_button(__('Check Progress'), function() {
-                frappe.call({
-                    method: 'frappe_whatsapp.utils.bulk_messaging.get_progress',
+                frappe_whatsapp.call({
+                    method: 'frappe_whatsapp.frappe_whatsapp.api.v1.bulk_messaging.get_progress',
                     args: {
                         name: frm.doc.name
                     },
-                    callback: function(r) {
-                        if(r.message) {
-                            let progress = r.message;
+                    callback: function(progress) {
+                        if(progress) {
                             let html = `
                                 <div class="progress" style="height: 20px;">
                                     <div class="progress-bar bg-success" role="progressbar" 
@@ -41,13 +53,13 @@ frappe.ui.form.on('Bulk WhatsApp Message', {
             
             // Add retry button
             frm.add_custom_button(__('Retry Failed Messages'), function() {
-                frappe.call({
-                    method: 'frappe_whatsapp.utils.bulk_messaging.retry_failed',
+                frappe_whatsapp.call({
+                    method: 'frappe_whatsapp.frappe_whatsapp.api.v1.bulk_messaging.retry_failed',
                     args: {
                         name: frm.doc.name
                     },
-                    callback: function(r) {
-                        if(r.message) {
+                    callback: function(retried) {
+                        if(retried) {
                             frm.reload_doc();
                         }
                     }
@@ -55,6 +67,12 @@ frappe.ui.form.on('Bulk WhatsApp Message', {
             }).addClass('btn-danger');
         }
     },
+    /**
+     * Stop the save when recipients, the template or the message text are missing.
+     *
+     * @param {Object} frm - The Bulk WhatsApp Message form.
+     * @returns {boolean} True when the batch can be saved.
+     */
     validate: function(frm) {
         if(frm.doc.recipient_type == 'Individual' && (!frm.doc.recipients || frm.doc.recipients.length === 0)) {
             frappe.throw(__('Please add at least one recipient'));
