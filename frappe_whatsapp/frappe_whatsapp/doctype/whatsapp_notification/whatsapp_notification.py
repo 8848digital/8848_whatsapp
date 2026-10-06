@@ -33,9 +33,21 @@ class WhatsAppNotification(Document):
 		"""
 		validate_notification(self)
 
-	def on_trash(self):
+	def on_update(self):
+		"""
+		Forget the cached event map so a new or edited notification fires straight away.
+
+		Returns:
+			None
+		"""
+		clear_notifications_map()
+
+	def after_delete(self):
 		"""
 		Forget the cached event map so the deleted notification stops firing.
+
+		Cleared after the row is gone; clearing in on_trash let the next
+		event rebuild the map with this notification still in it.
 
 		Returns:
 			None

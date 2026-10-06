@@ -17,7 +17,7 @@ from frappe_whatsapp.frappe_whatsapp.doctype.whatsapp_notification.notification_
 	get_role_recipients,
 	log_skipped,
 )
-from frappe_whatsapp.utils.phone import format_number
+from frappe_whatsapp.utils.phone import format_number, normalize_number
 
 ROLE_JOB = "frappe_whatsapp.frappe_whatsapp.tasks.send_role_notifications"
 
@@ -106,11 +106,11 @@ def get_recipients(notification, doc, doc_data, phone_no=None):
 		tuple: (list of numbers sent inline, list of numbers for the role job)
 	"""
 	if phone_no:
-		return [format_number(phone_no)], []
+		return [clean_number(phone_no)], []
 
 	inline_numbers = []
 	if notification.field_name and doc_data.get(notification.field_name):
-		inline_numbers.append(format_number(doc_data.get(notification.field_name)))
+		inline_numbers.append(clean_number(doc_data.get(notification.field_name)))
 
 	role_numbers = []
 	if notification.get("recipients"):
@@ -124,6 +124,23 @@ def get_recipients(notification, doc, doc_data, phone_no=None):
 	role_numbers = [number for number in remove_duplicates(role_numbers) if number not in inline_numbers]
 
 	return inline_numbers, role_numbers
+
+
+def clean_number(number):
+	"""
+	Number in the form Meta expects, adding the default country code when missing.
+
+	e.g. "9876543210" with default code "+91" -> "919876543210". Numbers
+	normalize_number can't make sense of are sent as typed, minus a leading "+".
+
+	Parameters:
+		number (str, required): Phone number as typed.
+
+	Returns:
+		str: Number to send to.
+	"""
+	country_code = frappe.get_cached_doc("WhatsApp Settings").get("default_country_code")
+	return normalize_number(number, country_code) or format_number(number)
 
 
 def remove_duplicates(numbers):
